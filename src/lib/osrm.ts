@@ -235,11 +235,23 @@ export function rankRoutes(
         ? "Tercepat"
         : "Terbaik";
 
-  return sorted.map(({ _score: _, ...route }, idx) => ({
-    ...route,
-    rank: idx,
-    recommended: idx === 0,
-    badge: idx === 0 ? badgeLabel : undefined,
-    explanation: buildExplanation(route, mode, idx),
-  }));
+  return sorted.map((routeWithScore, idx) => {
+    const route: ScoredRoute = {
+      id: routeWithScore.id,
+      geometry: routeWithScore.geometry,
+      distanceKm: routeWithScore.distanceKm,
+      durationMin: routeWithScore.durationMin,
+      riskScore: routeWithScore.riskScore,
+      riskLevel: routeWithScore.riskLevel,
+      floodProneSegments: routeWithScore.floodProneSegments,
+    };
+
+    return {
+      ...route,
+      rank: idx,
+      recommended: idx === 0,
+      badge: idx === 0 ? badgeLabel : undefined,
+      explanation: buildExplanation(route, mode, idx),
+    };
+  });
 }

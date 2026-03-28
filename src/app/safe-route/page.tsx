@@ -443,8 +443,6 @@ export default function SafeRoutePage() {
     }
   }, [originCoords, destCoords, mode]);
 
-  const selected =
-    rankedRoutes.find((r) => r.id === selectedId) ?? rankedRoutes[0];
   const canSearch = !!originCoords && !!destCoords && !loading;
 
   return (

@@ -20,7 +20,7 @@ export default function MapPlaceholder({
   showRoute = false,
   activeFilters,
 }: MapPlaceholderProps) {
-  const [_zoom, setZoom] = useState(1);
+  const [, setZoom] = useState(1);
   const showZones = activeFilters ? activeFilters["zones"] !== false : true;
   const showEvac = activeFilters ? !!activeFilters["evacuation"] : false;
   const showRouteLayer =
