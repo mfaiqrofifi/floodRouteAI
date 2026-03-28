@@ -10,6 +10,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { JAKARTA_MAP_BOUNDS, isWithinJakartaArea } from "@/lib/geo/jakarta-area";
+import JakartaBoundaryOverlay from "@/components/map/JakartaBoundaryOverlay";
 
 delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -86,6 +87,7 @@ export default function ReportLocationPicker({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <JakartaBoundaryOverlay showLabels />
         <ClickHandler onSelect={onSelect} />
         <RecenterOnSelection latitude={latitude} longitude={longitude} />
         {latitude !== null && longitude !== null && (

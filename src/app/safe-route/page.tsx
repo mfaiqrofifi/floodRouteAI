@@ -458,6 +458,16 @@ export default function SafeRoutePage() {
       <div className="flex-1 grid lg:grid-cols-[400px_1fr]">
         <div className="flex flex-col bg-white border-r border-slate-100 overflow-y-auto max-h-[calc(100vh-130px)]">
           <div className="p-5 space-y-4 border-b border-slate-100">
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                Cakupan Area
+              </p>
+              <p className="mt-1 text-sm text-blue-900 leading-relaxed">
+                Fitur rute aman saat ini hanya aktif untuk wilayah DKI Jakarta.
+                Area di luar batas biru pada peta ditampilkan sebagai area nonaktif.
+              </p>
+            </div>
+
             <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -702,6 +712,14 @@ export default function SafeRoutePage() {
             onRouteSelect={setSelectedId}
             onMapPointSelect={handleMapPointSelect}
           />
+          <div className="absolute top-4 right-4 z-[1000] rounded-2xl border border-blue-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur max-w-xs">
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+              Area Aktif
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+              Garis biru menandai wilayah DKI Jakarta. Pemilihan titik dan pencarian rute dibatasi hanya di area ini.
+            </p>
+          </div>
           {activeSelection && (
             <div className="absolute top-4 left-4 z-[1000] rounded-2xl border border-blue-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
               <p className="text-xs font-semibold text-slate-800">

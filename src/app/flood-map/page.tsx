@@ -184,6 +184,16 @@ export default function FloodMapPage() {
         />
       </div>
 
+      <div className="mb-5 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+          Cakupan Peta
+        </p>
+        <p className="mt-1 text-sm leading-relaxed text-blue-900">
+          Seluruh analisis pada peta ini difokuskan untuk wilayah DKI Jakarta.
+          Garis batas biru menunjukkan area aktif, sementara area di luarnya ditampilkan sebagai konteks nonaktif.
+        </p>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3 mb-5 p-4 bg-white rounded-2xl border border-slate-100 shadow-card">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
           <Filter size={13} />

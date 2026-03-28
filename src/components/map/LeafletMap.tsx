@@ -14,6 +14,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { RankedRoute } from "@/lib/osrm";
 import { JAKARTA_MAP_BOUNDS, isWithinJakartaArea } from "@/lib/geo/jakarta-area";
+import JakartaBoundaryOverlay from "@/components/map/JakartaBoundaryOverlay";
 
 // Fix Leaflet default icons broken by webpack/Next.js bundling
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -173,6 +174,7 @@ export default function LeafletMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      <JakartaBoundaryOverlay />
 
       {/* Auto-fit to selected route */}
       {boundsCoords.length > 1 && <BoundsFitter coords={boundsCoords} />}

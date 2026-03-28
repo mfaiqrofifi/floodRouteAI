@@ -185,6 +185,16 @@ export default function ReportFloodPage() {
                 Pilih Lokasi Laporan
               </h2>
 
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                  Cakupan Area Pelaporan
+                </p>
+                <p className="mt-1 text-sm text-blue-900 leading-relaxed">
+                  Pelaporan saat ini hanya menerima titik di wilayah DKI Jakarta.
+                  Garis batas biru pada peta menunjukkan area aktif yang bisa dipilih.
+                </p>
+              </div>
+
               <ReportLocationPicker
                 latitude={latitude}
                 longitude={longitude}

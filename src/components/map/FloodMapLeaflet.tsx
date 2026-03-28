@@ -30,6 +30,8 @@ import "leaflet/dist/leaflet.css";
 import { FLOOD_ZONES } from "@/lib/osrm";
 import type { JakartaAreaStatusItem } from "@/types/risk";
 import type { FloodReportMapItem } from "@/types/report";
+import { JAKARTA_MAP_BOUNDS } from "@/lib/geo/jakarta-area";
+import JakartaBoundaryOverlay from "@/components/map/JakartaBoundaryOverlay";
 
 // Fix broken Leaflet icons under webpack/Next.js
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -127,11 +129,18 @@ export default function FloodMapLeaflet({
       zoom={12}
       style={{ height: "100%", width: "100%" }}
       zoomControl
+      maxBounds={[
+        [JAKARTA_MAP_BOUNDS.southWest.lat, JAKARTA_MAP_BOUNDS.southWest.lng],
+        [JAKARTA_MAP_BOUNDS.northEast.lat, JAKARTA_MAP_BOUNDS.northEast.lng],
+      ]}
+      maxBoundsViscosity={1}
+      minZoom={10}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      <JakartaBoundaryOverlay showLabels />
 
       <MapFocuser area={selectedArea} report={selectedReport} />
 

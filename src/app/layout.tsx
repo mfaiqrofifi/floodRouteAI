@@ -25,6 +25,9 @@ export const metadata: Metadata = {
     "risiko banjir",
     "peringatan banjir",
   ],
+  other: {
+    "dicoding:email": "mfaiqrofifi@gmail.com",
+  },
 };
 
 export default function RootLayout({

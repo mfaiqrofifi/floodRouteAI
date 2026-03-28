@@ -16,7 +16,7 @@ export const JAKARTA_MAP_BOUNDS = {
   northEast: { lat: -6.07, lng: 106.98 },
 } as const;
 
-const JAKARTA_AREA_SHAPES: JakartaAreaShape[] = [
+export const JAKARTA_AREA_SHAPES: JakartaAreaShape[] = [
   {
     area: "Jakarta Barat",
     center: { lat: -6.1675, lng: 106.7635 },
