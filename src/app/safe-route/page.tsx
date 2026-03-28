@@ -13,6 +13,7 @@ import {
   Loader2,
   Info,
   MapPin,
+  LocateFixed,
   X,
   Crosshair,
   RotateCcw,
@@ -22,12 +23,15 @@ import SectionHeading from "@/components/shared/SectionHeading";
 import RiskBadge from "@/components/shared/RiskBadge";
 import AlertBanner from "@/components/shared/AlertBanner";
 import {
-  geocodeQuery,
+  geocodeQueryWithScope,
   reverseGeocodePoint,
   JAKARTA_PRESETS,
   type GeoResult,
 } from "@/lib/geocoding";
-import { isWithinJakartaArea } from "@/lib/geo/jakarta-area";
+import {
+  isWithinJakartaArea,
+  isWithinJavaBounds,
+} from "@/lib/geo/jakarta-area";
 import {
   fetchScoredRoutes,
   rankRoutes,
@@ -63,6 +67,7 @@ interface LocationInputProps {
   selectionActive?: boolean;
   searchError?: string | null;
   helperText?: string | null;
+  searchScope?: "jakarta" | "java";
 }
 
 function LocationInput({
@@ -76,6 +81,7 @@ function LocationInput({
   selectionActive = false,
   searchError = null,
   helperText = null,
+  searchScope = "jakarta",
 }: LocationInputProps) {
   const [suggestions, setSuggestions] = useState<GeoResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -103,7 +109,7 @@ function LocationInput({
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const results = await geocodeQuery(v);
+        const results = await geocodeQueryWithScope(v, searchScope);
         setSuggestions(results.slice(0, 6));
       } catch {
         setSuggestions([]);
@@ -325,6 +331,8 @@ export default function SafeRoutePage() {
   const [reverseLoading, setReverseLoading] = useState<
     "origin" | "destination" | null
   >(null);
+  const [locatingOrigin, setLocatingOrigin] = useState(false);
+  const [showMapHint, setShowMapHint] = useState(true);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -350,8 +358,13 @@ export default function SafeRoutePage() {
 
   const applyLocation = useCallback(
     (kind: "origin" | "destination", result: GeoResult) => {
-      if (!isWithinJakartaArea(result.lat, result.lng)) {
-        setGeocodeError("Saat ini rute aman hanya mendukung titik di wilayah DKI Jakarta.");
+      if (kind === "origin" && !isWithinJavaBounds(result.lat, result.lng)) {
+        setGeocodeError("Titik awal hanya didukung dari wilayah Pulau Jawa.");
+        return;
+      }
+
+      if (kind === "destination" && !isWithinJakartaArea(result.lat, result.lng)) {
+        setGeocodeError("Titik tujuan harus berada di wilayah DKI Jakarta.");
         return;
       }
 
@@ -403,11 +416,8 @@ export default function SafeRoutePage() {
     async (kind: "origin" | "destination", coords: [number, number]) => {
       setReverseLoading(kind);
       try {
-        const result = await reverseGeocodePoint(coords[0], coords[1]);
-        if (!isWithinJakartaArea(result.lat, result.lng)) {
-          setGeocodeError("Saat ini rute aman hanya mendukung titik di wilayah DKI Jakarta.");
-          return;
-        }
+        const scope = kind === "origin" ? "java" : "jakarta";
+        const result = await reverseGeocodePoint(coords[0], coords[1], scope);
         applyLocation(kind, result);
       } catch {
         setGeocodeError("Tidak dapat membaca label lokasi dari titik peta.");
@@ -443,6 +453,63 @@ export default function SafeRoutePage() {
     }
   }, [originCoords, destCoords, mode]);
 
+  const handleUseCurrentLocation = useCallback(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      setGeocodeError("Browser ini tidak mendukung akses lokasi GPS.");
+      return;
+    }
+
+    setLocatingOrigin(true);
+    setGeocodeError(null);
+    setError(null);
+    setActiveSelection(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const lat = Number(position.coords.latitude.toFixed(6));
+          const lng = Number(position.coords.longitude.toFixed(6));
+
+          if (!isWithinJavaBounds(lat, lng)) {
+            setGeocodeError(
+              "Lokasi GPS Anda terdeteksi di luar Pulau Jawa. Saat ini titik awal hanya didukung dari wilayah Pulau Jawa.",
+            );
+            return;
+          }
+
+          const result = await reverseGeocodePoint(lat, lng, "java");
+          applyLocation("origin", {
+            ...result,
+            lat,
+            lng,
+          });
+        } catch {
+          setGeocodeError("Lokasi GPS berhasil didapat, tetapi nama lokasinya gagal dibaca.");
+        } finally {
+          setLocatingOrigin(false);
+        }
+      },
+      (geoError) => {
+        const message =
+          geoError.code === geoError.PERMISSION_DENIED
+            ? "Izin lokasi ditolak. Izinkan akses GPS di browser untuk memakai lokasi saat ini."
+            : geoError.code === geoError.POSITION_UNAVAILABLE
+              ? "Lokasi saat ini tidak tersedia. Coba lagi dalam beberapa saat."
+              : geoError.code === geoError.TIMEOUT
+                ? "Permintaan lokasi terlalu lama. Coba lagi."
+                : "Gagal mengambil lokasi saat ini dari GPS.";
+
+        setGeocodeError(message);
+        setLocatingOrigin(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      },
+    );
+  }, [applyLocation]);
+
   const canSearch = !!originCoords && !!destCoords && !loading;
 
   return (
@@ -463,8 +530,8 @@ export default function SafeRoutePage() {
                 Cakupan Area
               </p>
               <p className="mt-1 text-sm text-blue-900 leading-relaxed">
-                Fitur rute aman saat ini hanya aktif untuk wilayah DKI Jakarta.
-                Area di luar batas biru pada peta ditampilkan sebagai area nonaktif.
+                Titik awal dapat dipilih dari wilayah Pulau Jawa, tetapi tujuan
+                akhir harus berada di DKI Jakarta. Garis biru pada peta menandai area tujuan Jakarta.
               </p>
             </div>
 
@@ -497,14 +564,34 @@ export default function SafeRoutePage() {
                 dotClass="bg-blue-500"
                 selectionActive={activeSelection === "origin"}
                 searchError={geocodeError}
+                searchScope="java"
                 helperText={
                   originCoords
                     ? `${originCoords[0].toFixed(5)}, ${originCoords[1].toFixed(5)}`
-                    : "Ketik lokasi atau pilih titik awal di peta DKI Jakarta"
+                    : "Titik awal bisa dari Pulau Jawa, GPS, atau klik di peta"
                 }
               />
               <div className="flex gap-2">
                 <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  disabled={locatingOrigin}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {locatingOrigin ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      Mendeteksi GPS...
+                    </>
+                  ) : (
+                    <>
+                      <LocateFixed size={13} />
+                      Lokasi Saya
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
                   onClick={() =>
                     setActiveSelection((prev) =>
                       prev === "origin" ? null : "origin",
@@ -522,6 +609,7 @@ export default function SafeRoutePage() {
                 </button>
                 {originCoords && (
                   <button
+                    type="button"
                     onClick={() => clearLocation("origin")}
                     className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                   >
@@ -546,14 +634,16 @@ export default function SafeRoutePage() {
                 dotClass="bg-red-500"
                 selectionActive={activeSelection === "destination"}
                 searchError={geocodeError}
+                searchScope="jakarta"
                 helperText={
                   destCoords
                     ? `${destCoords[0].toFixed(5)}, ${destCoords[1].toFixed(5)}`
-                    : "Ketik lokasi atau pilih tujuan di peta DKI Jakarta"
+                    : "Tujuan wajib berada di DKI Jakarta"
                 }
               />
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={() =>
                     setActiveSelection((prev) =>
                       prev === "destination" ? null : "destination",
@@ -571,6 +661,7 @@ export default function SafeRoutePage() {
                 </button>
                 {destCoords && (
                   <button
+                    type="button"
                     onClick={() => clearLocation("destination")}
                     className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                   >
@@ -586,10 +677,10 @@ export default function SafeRoutePage() {
                 {reverseLoading
                   ? "Membaca nama lokasi dari titik peta…"
                   : activeSelection === "origin"
-                      ? "Klik peta untuk menentukan titik awal."
+                      ? "Klik peta untuk menentukan titik awal dari wilayah Pulau Jawa."
                       : activeSelection === "destination"
-                        ? "Klik peta untuk menentukan tujuan."
-                      : "Pilih titik via pencarian atau klik langsung pada peta DKI Jakarta."}
+                        ? "Klik peta untuk menentukan tujuan di DKI Jakarta."
+                      : "Titik awal bisa dari Pulau Jawa, sedangkan tujuan harus di DKI Jakarta."}
               </span>
             </div>
             <div>
@@ -656,7 +747,7 @@ export default function SafeRoutePage() {
                   Masukkan titik awal dan tujuan
                 </p>
                 <p className="text-xs text-slate-400 mt-1">
-                  Gunakan autocomplete atau klik langsung pada peta DKI Jakarta, lalu tekan Cari.
+                  Titik awal bisa dari Pulau Jawa, sedangkan tujuan harus di DKI Jakarta.
                 </p>
               </div>
             )}
@@ -712,14 +803,28 @@ export default function SafeRoutePage() {
             onRouteSelect={setSelectedId}
             onMapPointSelect={handleMapPointSelect}
           />
-          <div className="absolute top-4 right-4 z-[1000] rounded-2xl border border-blue-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur max-w-xs">
-            <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
-              Area Aktif
-            </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
-              Garis biru menandai wilayah DKI Jakarta. Pemilihan titik dan pencarian rute dibatasi hanya di area ini.
-            </p>
-          </div>
+          {showMapHint && (
+            <div className="absolute top-4 right-4 z-[1000] max-w-xs rounded-2xl border border-blue-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                    Area Aktif
+                  </p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                    Garis biru menandai area tujuan DKI Jakarta. Titik awal boleh dipilih dari wilayah Pulau Jawa.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMapHint(false)}
+                  className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                  aria-label="Tutup informasi area aktif"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          )}
           {activeSelection && (
             <div className="absolute top-4 left-4 z-[1000] rounded-2xl border border-blue-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
               <p className="text-xs font-semibold text-slate-800">
@@ -728,7 +833,9 @@ export default function SafeRoutePage() {
                   : "Mode pilih tujuan aktif"}
               </p>
               <p className="mt-1 text-[11px] text-slate-500">
-                Klik pada peta untuk menetapkan lokasi.
+                {activeSelection === "origin"
+                  ? "Pilih titik awal dari wilayah Pulau Jawa."
+                  : "Pilih tujuan yang berada di DKI Jakarta."}
               </p>
             </div>
           )}

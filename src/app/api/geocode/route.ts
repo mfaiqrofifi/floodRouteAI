@@ -5,17 +5,30 @@
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q") ?? "";
+  const scope = searchParams.get("scope") ?? "jakarta";
   if (!q.trim()) return Response.json([]);
 
-  const params = new URLSearchParams({
-    q: `${q} DKI Jakarta`,
-    format: "json",
-    limit: "6",
-    countrycodes: "id",
-    addressdetails: "0",
-    bounded: "1",
-    viewbox: "106.695,-6.07,106.98,-6.38",
-  });
+  const params = new URLSearchParams(
+    scope === "java"
+      ? {
+          q: `${q} Pulau Jawa Indonesia`,
+          format: "json",
+          limit: "6",
+          countrycodes: "id",
+          addressdetails: "0",
+          bounded: "1",
+          viewbox: "105.0,-5.7,114.8,-8.9",
+        }
+      : {
+          q: `${q} DKI Jakarta`,
+          format: "json",
+          limit: "6",
+          countrycodes: "id",
+          addressdetails: "0",
+          bounded: "1",
+          viewbox: "106.695,-6.07,106.98,-6.38",
+        },
+  );
 
   const res = await fetch(
     `https://nominatim.openstreetmap.org/search?${params}`,

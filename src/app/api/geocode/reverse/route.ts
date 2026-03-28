@@ -2,12 +2,16 @@
  * Server-side proxy for Nominatim reverse geocoding.
  * Used when the user picks a point directly on the map.
  */
-import { isWithinJakartaArea } from "@/lib/geo/jakarta-area";
+import {
+  isWithinJakartaArea,
+  isWithinJavaBounds,
+} from "@/lib/geo/jakarta-area";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const lat = searchParams.get("lat") ?? "";
   const lng = searchParams.get("lng") ?? "";
+  const scope = searchParams.get("scope") ?? "jakarta";
 
   if (!lat.trim() || !lng.trim()) {
     return Response.json({});
@@ -19,7 +23,9 @@ export async function GET(request: Request) {
   if (
     Number.isNaN(parsedLat) ||
     Number.isNaN(parsedLng) ||
-    !isWithinJakartaArea(parsedLat, parsedLng)
+    (scope === "java"
+      ? !isWithinJavaBounds(parsedLat, parsedLng)
+      : !isWithinJakartaArea(parsedLat, parsedLng))
   ) {
     return Response.json({});
   }

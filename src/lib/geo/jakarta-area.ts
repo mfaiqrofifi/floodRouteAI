@@ -16,6 +16,11 @@ export const JAKARTA_MAP_BOUNDS = {
   northEast: { lat: -6.07, lng: 106.98 },
 } as const;
 
+export const JAVA_MAP_BOUNDS = {
+  southWest: { lat: -8.9, lng: 105.0 },
+  northEast: { lat: -5.7, lng: 114.8 },
+} as const;
+
 export const JAKARTA_AREA_SHAPES: JakartaAreaShape[] = [
   {
     area: "Jakarta Barat",
@@ -98,6 +103,15 @@ export function isWithinJakartaBounds(latitude: number, longitude: number): bool
     latitude <= JAKARTA_MAP_BOUNDS.northEast.lat &&
     longitude >= JAKARTA_MAP_BOUNDS.southWest.lng &&
     longitude <= JAKARTA_MAP_BOUNDS.northEast.lng
+  );
+}
+
+export function isWithinJavaBounds(latitude: number, longitude: number): boolean {
+  return (
+    latitude >= JAVA_MAP_BOUNDS.southWest.lat &&
+    latitude <= JAVA_MAP_BOUNDS.northEast.lat &&
+    longitude >= JAVA_MAP_BOUNDS.southWest.lng &&
+    longitude <= JAVA_MAP_BOUNDS.northEast.lng
   );
 }
 

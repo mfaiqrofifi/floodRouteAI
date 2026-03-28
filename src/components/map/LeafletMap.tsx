@@ -13,7 +13,11 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { RankedRoute } from "@/lib/osrm";
-import { JAKARTA_MAP_BOUNDS, isWithinJakartaArea } from "@/lib/geo/jakarta-area";
+import {
+  JAVA_MAP_BOUNDS,
+  isWithinJakartaArea,
+  isWithinJavaBounds,
+} from "@/lib/geo/jakarta-area";
 import JakartaBoundaryOverlay from "@/components/map/JakartaBoundaryOverlay";
 
 // Fix Leaflet default icons broken by webpack/Next.js bundling
@@ -94,7 +98,13 @@ function MapClickSelector({
   useMapEvents({
     click(event) {
       if (!activeSelection || !onMapPointSelect) return;
-      if (!isWithinJakartaArea(event.latlng.lat, event.latlng.lng)) return;
+      if (
+        activeSelection === "origin"
+          ? !isWithinJavaBounds(event.latlng.lat, event.latlng.lng)
+          : !isWithinJakartaArea(event.latlng.lat, event.latlng.lng)
+      ) {
+        return;
+      }
       onMapPointSelect(activeSelection, [event.latlng.lat, event.latlng.lng]);
     },
   });
@@ -160,21 +170,21 @@ export default function LeafletMap({
   return (
     <MapContainer
       center={[-6.2088, 106.8175]} // Jakarta default centre
-      zoom={12}
+      zoom={9}
       style={{ height: "100%", width: "100%" }}
       zoomControl
       maxBounds={[
-        [JAKARTA_MAP_BOUNDS.southWest.lat, JAKARTA_MAP_BOUNDS.southWest.lng],
-        [JAKARTA_MAP_BOUNDS.northEast.lat, JAKARTA_MAP_BOUNDS.northEast.lng],
+        [JAVA_MAP_BOUNDS.southWest.lat, JAVA_MAP_BOUNDS.southWest.lng],
+        [JAVA_MAP_BOUNDS.northEast.lat, JAVA_MAP_BOUNDS.northEast.lng],
       ]}
       maxBoundsViscosity={1}
-      minZoom={10}
+      minZoom={8}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <JakartaBoundaryOverlay />
+      <JakartaBoundaryOverlay dimOutside={false} />
 
       {/* Auto-fit to selected route */}
       {boundsCoords.length > 1 && <BoundsFitter coords={boundsCoords} />}

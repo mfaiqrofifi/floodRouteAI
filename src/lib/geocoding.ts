@@ -5,7 +5,10 @@ export interface GeoResult {
   lng: number;
 }
 
-import { isWithinJakartaArea } from "@/lib/geo/jakarta-area";
+import {
+  isWithinJakartaArea,
+  isWithinJavaBounds,
+} from "@/lib/geo/jakarta-area";
 
 /** Predefined Jakarta locations with real coordinates for quick selection. */
 export const JAKARTA_PRESETS: GeoResult[] = [
@@ -88,13 +91,24 @@ export const JAKARTA_PRESETS: GeoResult[] = [
  * Falls back to matching against JAKARTA_PRESETS on failure.
  */
 export async function geocodeQuery(query: string): Promise<GeoResult[]> {
+  return geocodeQueryWithScope(query, "jakarta");
+}
+
+export async function geocodeQueryWithScope(
+  query: string,
+  scope: "jakarta" | "java" = "jakarta",
+): Promise<GeoResult[]> {
   if (!query.trim() || query.trim().length < 2) return [];
   try {
-    const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
-    if (!res.ok) return filterPresets(query);
+    const res = await fetch(
+      `/api/geocode?q=${encodeURIComponent(query)}&scope=${scope}`,
+    );
+    if (!res.ok) return scope === "jakarta" ? filterPresets(query) : [];
     const data: Array<{ display_name: string; lat: string; lon: string }> =
       await res.json();
-    if (!Array.isArray(data) || !data.length) return filterPresets(query);
+    if (!Array.isArray(data) || !data.length) {
+      return scope === "jakarta" ? filterPresets(query) : [];
+    }
     return data
       .map((r) => ({
         displayName: r.display_name,
@@ -102,9 +116,13 @@ export async function geocodeQuery(query: string): Promise<GeoResult[]> {
         lat: parseFloat(r.lat),
         lng: parseFloat(r.lon),
       }))
-      .filter((r) => isWithinJakartaArea(r.lat, r.lng));
+      .filter((r) =>
+        scope === "java"
+          ? isWithinJavaBounds(r.lat, r.lng)
+          : isWithinJakartaArea(r.lat, r.lng),
+      );
   } catch {
-    return filterPresets(query);
+    return scope === "jakarta" ? filterPresets(query) : [];
   }
 }
 
@@ -115,12 +133,13 @@ export async function geocodeQuery(query: string): Promise<GeoResult[]> {
 export async function reverseGeocodePoint(
   lat: number,
   lng: number,
+  scope: "jakarta" | "java" = "jakarta",
 ): Promise<GeoResult> {
   const fallback = buildCoordinateResult(lat, lng);
 
   try {
     const res = await fetch(
-      `/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`,
+      `/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&scope=${scope}`,
     );
     if (!res.ok) return fallback;
 
