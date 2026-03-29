@@ -95,6 +95,10 @@ export interface RouteGuidanceStep {
   distanceKm: number;
   riskLevel: RiskLevel;
   warning: string | null;
+  geometry: [number, number][];
+  focusPoint: [number, number] | null;
+  routeStartIndex: number;
+  routeEndIndex: number;
 }
 
 /** A route with geometry + risk scoring but no mode-based ranking yet. */
@@ -184,9 +188,9 @@ function toTitleCase(value: string): string {
     .join(" ");
 }
 
-function buildStepInstruction(step: OsrmStep): string {
+function buildStepInstruction(step: OsrmStep, distanceMeters = step.distance): string {
   const roadName = step.name?.trim() || "jalan utama";
-  const distanceLabel = formatDistanceKm(step.distance);
+  const distanceLabel = formatDistanceKm(distanceMeters);
   const modifier = step.maneuver?.modifier;
   const type = step.maneuver?.type;
 
@@ -241,17 +245,62 @@ function buildRiskWarning(stepRiskScore: number, roadName: string | null): strin
   return null;
 }
 
-function buildGuidanceSteps(steps: OsrmStep[]): RouteGuidanceStep[] {
+function pointsAlmostEqual(
+  a: [number, number],
+  b: [number, number],
+  tolerance = 0.00001,
+): boolean {
+  return Math.abs(a[0] - b[0]) <= tolerance && Math.abs(a[1] - b[1]) <= tolerance;
+}
+
+function findMatchingIndex(
+  routeGeometry: [number, number][],
+  point: [number, number],
+  startIndex: number,
+): number {
+  if (!Array.isArray(routeGeometry) || routeGeometry.length === 0) {
+    return 0;
+  }
+
+  for (let index = startIndex; index < routeGeometry.length; index += 1) {
+    if (pointsAlmostEqual(routeGeometry[index], point)) {
+      return index;
+    }
+  }
+
+  return Math.min(startIndex, Math.max(0, routeGeometry.length - 1));
+}
+
+function buildGuidanceSteps(
+  steps: OsrmStep[],
+  routeGeometry: [number, number][],
+): RouteGuidanceStep[] {
   const condensed: RouteGuidanceStep[] = [];
+  let pendingGeometry: [number, number][] = [];
+  let pendingDistanceMeters = 0;
+  let routeCursor = 0;
 
   for (const step of steps) {
-    if (step.distance < 250 && step.maneuver?.type !== "depart") {
+    const stepCoordinates = Array.isArray(step.geometry?.coordinates)
+      ? step.geometry.coordinates
+      : [];
+    const stepGeometry = stepCoordinates.map(
+      ([lng, lat]) => [lat, lng] as [number, number],
+    );
+    const shouldCondenseOnly =
+      step.distance < 250 &&
+      step.maneuver?.type !== "depart" &&
+      step.maneuver?.type !== "arrive";
+
+    if (shouldCondenseOnly) {
+      pendingGeometry = [...pendingGeometry, ...stepGeometry];
+      pendingDistanceMeters += step.distance;
       continue;
     }
 
     const roadName = step.name?.trim() || null;
-    const geometry =
-      step.geometry?.coordinates.map(([lng, lat]) => [lat, lng] as [number, number]) ?? [];
+    const geometry = [...pendingGeometry, ...stepGeometry];
+    const totalDistanceMeters = pendingDistanceMeters + step.distance;
     const sampledScores = geometry.length
       ? geometry.map(([lat, lng]) => getPointRisk(lat, lng))
       : [0];
@@ -259,14 +308,44 @@ function buildGuidanceSteps(steps: OsrmStep[]): RouteGuidanceStep[] {
       sampledScores.reduce((sum, value) => sum + value, 0) / sampledScores.length,
     );
     const riskLevel = getRiskLevelFromScore(stepRiskScore);
+    const startPoint = geometry[0] ?? routeGeometry[routeCursor] ?? routeGeometry[0] ?? null;
+    const endPoint =
+      geometry[geometry.length - 1] ??
+      routeGeometry[routeCursor] ??
+      routeGeometry[routeGeometry.length - 1] ??
+      null;
+    const routeStartIndex = startPoint
+      ? findMatchingIndex(routeGeometry, startPoint, routeCursor)
+      : routeCursor;
+    const routeEndIndex = endPoint
+      ? findMatchingIndex(routeGeometry, endPoint, routeStartIndex)
+      : routeStartIndex;
 
     condensed.push({
-      instruction: buildStepInstruction(step),
+      instruction: buildStepInstruction(step, totalDistanceMeters),
       roadName,
-      distanceKm: Math.round((step.distance / 1000) * 10) / 10,
+      distanceKm: Math.round((totalDistanceMeters / 1000) * 10) / 10,
       riskLevel,
       warning: buildRiskWarning(stepRiskScore, roadName),
+      geometry,
+      focusPoint: geometry[Math.floor(geometry.length / 2)] ?? null,
+      routeStartIndex,
+      routeEndIndex,
     });
+
+    routeCursor = Math.max(routeEndIndex, routeStartIndex);
+
+    pendingGeometry = [];
+    pendingDistanceMeters = 0;
+  }
+
+  if (pendingGeometry.length > 0 && condensed.length > 0) {
+    const lastStep = condensed[condensed.length - 1];
+    lastStep.geometry = [...lastStep.geometry, ...pendingGeometry];
+    lastStep.distanceKm =
+      Math.round((lastStep.distanceKm + pendingDistanceMeters / 1000) * 10) / 10;
+    lastStep.focusPoint =
+      lastStep.geometry[Math.floor(lastStep.geometry.length / 2)] ?? lastStep.focusPoint;
   }
 
   const uniqueSteps: RouteGuidanceStep[] = [];
@@ -281,6 +360,10 @@ function buildGuidanceSteps(steps: OsrmStep[]): RouteGuidanceStep[] {
       step.riskLevel === previous.riskLevel
     ) {
       previous.distanceKm = Math.round((previous.distanceKm + step.distanceKm) * 10) / 10;
+      previous.geometry = [...previous.geometry, ...step.geometry];
+      previous.focusPoint =
+        previous.geometry[Math.floor(previous.geometry.length / 2)] ?? previous.focusPoint;
+      previous.routeEndIndex = step.routeEndIndex;
       previous.instruction = `Lanjutkan melalui ${step.roadName} sekitar ${previous.distanceKm
         .toFixed(1)
         .replace(".0", "")} km.`;
@@ -291,15 +374,28 @@ function buildGuidanceSteps(steps: OsrmStep[]): RouteGuidanceStep[] {
     uniqueSteps.push(step);
   }
 
-  const prioritized = uniqueSteps.filter(
-    (step) =>
-      step.roadName ||
-      step.warning ||
-      step.instruction.toLowerCase().includes("belok") ||
-      step.instruction.toLowerCase().includes("mulai"),
-  );
+  const meaningfulSteps = uniqueSteps.filter((step, index) => {
+    const text = step.instruction.toLowerCase();
+    const isArrival = text.includes("tujuan");
+    const isTurn =
+      text.includes("belok") ||
+      text.includes("bundaran") ||
+      text.includes("sedikit ke kiri") ||
+      text.includes("sedikit ke kanan");
+    const hasNamedRoad = Boolean(step.roadName);
+    const isLongSegment = step.distanceKm >= 0.4;
+    const hasRiskWarning = Boolean(step.warning);
+    const isFirstGenericStep =
+      index === 0 && !hasNamedRoad && !isTurn && step.distanceKm < 0.3;
 
-  return (prioritized.length ? prioritized : uniqueSteps).slice(0, 5);
+    if (isFirstGenericStep) {
+      return false;
+    }
+
+    return isArrival || isTurn || hasNamedRoad || isLongSegment || hasRiskWarning;
+  });
+
+  return meaningfulSteps.length ? meaningfulSteps : uniqueSteps;
 }
 
 function buildGuidanceSummary(route: ScoredRoute, steps: RouteGuidanceStep[]): string {
@@ -364,7 +460,15 @@ export async function fetchScoredRoutes(
     );
     const routeScore = scoreGeometry(geometry);
     const routeSteps = r.legs.flatMap((leg) => leg.steps ?? []);
-    const guidanceSteps = buildGuidanceSteps(routeSteps);
+    let guidanceSteps: RouteGuidanceStep[] = [];
+
+    try {
+      guidanceSteps = buildGuidanceSteps(routeSteps, geometry);
+    } catch (error) {
+      console.warn("[safe-route] guidance generation fallback:", error);
+      guidanceSteps = [];
+    }
+
     return {
       id: `route-${i}`,
       geometry,

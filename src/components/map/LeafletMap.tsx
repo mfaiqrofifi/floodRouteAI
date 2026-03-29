@@ -85,6 +85,35 @@ function MarkerFitter({
   return null;
 }
 
+function GuidanceStepFitter({
+  stepGeometry,
+}: {
+  stepGeometry: [number, number][];
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!stepGeometry.length) return;
+
+    if (stepGeometry.length === 1) {
+      map.setView(stepGeometry[0], 16, {
+        animate: true,
+        duration: 0.5,
+      });
+      return;
+    }
+
+    map.fitBounds(stepGeometry as L.LatLngBoundsExpression, {
+      padding: [80, 80],
+      animate: true,
+      duration: 0.6,
+      maxZoom: 16,
+    });
+  }, [map, stepGeometry]);
+
+  return null;
+}
+
 function MapClickSelector({
   activeSelection,
   onMapPointSelect,
@@ -146,6 +175,7 @@ export interface LeafletMapProps {
   originLabel?: string;
   destLabel?: string;
   activeSelection?: "origin" | "destination" | null;
+  focusedStepGeometry?: [number, number][];
   onRouteSelect: (id: string) => void;
   onMapPointSelect?: (
     kind: "origin" | "destination",
@@ -161,6 +191,7 @@ export default function LeafletMap({
   originLabel,
   destLabel,
   activeSelection = null,
+  focusedStepGeometry = [],
   onRouteSelect,
   onMapPointSelect,
 }: LeafletMapProps) {
@@ -191,6 +222,9 @@ export default function LeafletMap({
       {boundsCoords.length < 2 && (
         <MarkerFitter originCoords={originCoords} destCoords={destCoords} />
       )}
+      {focusedStepGeometry.length > 0 && (
+        <GuidanceStepFitter stepGeometry={focusedStepGeometry} />
+      )}
       <MapClickSelector
         activeSelection={activeSelection}
         onMapPointSelect={onMapPointSelect}
@@ -214,6 +248,17 @@ export default function LeafletMap({
           />
         );
       })}
+
+      {focusedStepGeometry.length > 1 && (
+        <Polyline
+          positions={focusedStepGeometry}
+          pathOptions={{
+            color: "#2563eb",
+            weight: 8,
+            opacity: 0.9,
+          }}
+        />
+      )}
 
       {/* Origin marker */}
       {originCoords && (
