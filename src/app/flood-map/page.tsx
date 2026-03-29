@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapPin,
   Layers,
   Filter,
   Clock,
+  ChevronDown,
+  MousePointerClick,
   ChevronRight,
   X,
   AlertTriangle,
@@ -59,6 +61,7 @@ function formatUpdatedAt(value: string | null): string {
 }
 
 export default function FloodMapPage() {
+  const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const [filters, setFilters] = useState<Record<string, boolean>>({
     zones: true,
     reports: true,
@@ -174,6 +177,15 @@ export default function FloodMapPage() {
     setFilters((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const focusReportOnMap = (reportId: string) => {
+    setSelectedAreaId(null);
+    setSelectedReportId(reportId);
+    mapSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
       <div className="mb-6">
@@ -192,6 +204,28 @@ export default function FloodMapPage() {
           Seluruh analisis pada peta ini difokuskan untuk wilayah DKI Jakarta.
           Garis batas biru menunjukkan area aktif, sementara area di luarnya ditampilkan sebagai konteks nonaktif.
         </p>
+      </div>
+
+      <div className="mb-4 flex justify-center">
+        <button
+          type="button"
+          onClick={() =>
+            mapSectionRef.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            })
+          }
+          className="group inline-flex flex-col items-center gap-1 text-slate-400 transition-colors hover:text-blue-600"
+          aria-label="Scroll ke peta dan area laporan"
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-[0.24em]">
+            Scroll
+          </span>
+          <ChevronDown
+            size={18}
+            className="animate-bounce-soft transition-transform group-hover:translate-y-0.5"
+          />
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-5 p-4 bg-white rounded-2xl border border-slate-100 shadow-card">
@@ -231,7 +265,7 @@ export default function FloodMapPage() {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-4 gap-5">
+      <div ref={mapSectionRef} className="grid lg:grid-cols-4 gap-5">
         <div className="lg:col-span-3 space-y-5">
           <div className="relative h-[500px] lg:h-[600px] rounded-2xl overflow-hidden border border-slate-200 shadow-card">
             <FloodMapView
@@ -261,9 +295,34 @@ export default function FloodMapPage() {
               </div>
             )}
 
+            {filters.routes && (
+              <div className="absolute top-4 left-4 z-[1000] max-w-sm rounded-2xl border border-emerald-200 bg-white/95 backdrop-blur px-4 py-3 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                  Mode Rute Aman Aktif
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                  {selectedReport || selectedArea
+                    ? "Titik sudah siap dipakai. Gunakan tombol Rute Aman di panel kanan untuk membuka rute dengan lokasi awal otomatis."
+                    : "Klik area atau titik laporan di peta terlebih dahulu, lalu gunakan tombol Rute Aman di panel kanan."}
+                </p>
+              </div>
+            )}
+
             <div className="absolute bottom-4 left-4 z-[1000] hidden md:block">
               <MapLegend />
             </div>
+
+            {!selectedReport && reports.length > 0 && (
+              <div className="absolute bottom-4 right-4 z-[1000] hidden lg:flex items-center gap-2 rounded-full border border-blue-200 bg-white/95 px-4 py-2 shadow-sm backdrop-blur">
+                <MousePointerClick
+                  size={14}
+                  className="text-blue-600 animate-pulse-soft"
+                />
+                <span className="text-xs font-semibold text-slate-700">
+                  Scroll ke bawah lalu klik laporan untuk fokus ke titik exact
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="grid md:grid-cols-3 gap-4">
@@ -447,8 +506,15 @@ export default function FloodMapPage() {
                   Buat Laporan
                 </Link>
                 <Link
-                  href={`/safe-route?origin=${encodeURIComponent(selectedReport.area)}`}
-                  className="flex-1 text-center py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-colors"
+                  href={`/safe-route?origin=${encodeURIComponent(
+                    selectedReport.locationTitle,
+                  )}&originLat=${selectedReport.latitude}&originLng=${selectedReport.longitude}`}
+                  className={cn(
+                    "flex-1 text-center py-2 text-xs font-semibold rounded-lg transition-all",
+                    filters.routes
+                      ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-600"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
                 >
                   Rute Aman
                 </Link>
@@ -528,8 +594,15 @@ export default function FloodMapPage() {
                   Detail Risiko
                 </Link>
                 <Link
-                  href={`/safe-route?origin=${encodeURIComponent(selectedArea.area)}`}
-                  className="flex-1 text-center py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-colors"
+                  href={`/safe-route?origin=${encodeURIComponent(
+                    selectedArea.area,
+                  )}&originLat=${selectedArea.coordinates.lat}&originLng=${selectedArea.coordinates.lng}`}
+                  className={cn(
+                    "flex-1 text-center py-2 text-xs font-semibold rounded-lg transition-all",
+                    filters.routes
+                      ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-600"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
                 >
                   Rute Aman
                 </Link>
@@ -539,7 +612,9 @@ export default function FloodMapPage() {
             <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-5 text-center">
               <MapPin size={24} className="text-slate-300 mx-auto mb-2" />
               <p className="text-xs text-slate-500">
-                Klik titik laporan atau nama area di peta untuk melihat detail informasi
+                {filters.routes
+                  ? "Klik titik laporan atau nama area di peta untuk membuka titik awal, lalu lanjutkan ke tombol Rute Aman."
+                  : "Klik titik laporan atau nama area di peta untuk melihat detail informasi"}
               </p>
             </div>
           )}
@@ -632,74 +707,6 @@ export default function FloodMapPage() {
             )}
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-slate-900 text-sm">
-                Titik Laporan
-              </h3>
-              <span className="text-xs font-semibold text-blue-600">
-                {loadingReports ? "..." : reports.length}
-              </span>
-            </div>
-
-            {loadingReports ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((item) => (
-                  <div
-                    key={item}
-                    className="animate-pulse h-12 rounded-xl border bg-slate-50 border-slate-100"
-                  />
-                ))}
-              </div>
-            ) : reports.length === 0 ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
-                <p className="text-xs text-slate-500">
-                  Belum ada titik laporan banjir yang tersimpan.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {reports.slice(0, 5).map((report) => (
-                  <button
-                    key={report.id}
-                    onClick={() => {
-                      setSelectedAreaId(null);
-                      setSelectedReportId(report.id);
-                    }}
-                    className={cn(
-                      "flex w-full items-start justify-between gap-3 rounded-xl border p-3 text-left transition-all",
-                      selectedReportId === report.id
-                        ? "border-blue-200 bg-blue-50"
-                        : "border-slate-100 bg-slate-50 hover:bg-blue-50/60",
-                    )}
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-800 truncate">
-                        {report.locationTitle}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-slate-500">
-                        {report.waterDepthLabel} ·{" "}
-                        {report.roadPassable
-                          ? "Bisa dilalui"
-                          : "Tidak bisa dilalui"}
-                      </p>
-                    </div>
-                    <span
-                      className={cn(
-                        "mt-0.5 w-2.5 h-2.5 rounded-full shrink-0",
-                        report.riskLevel === "high"
-                          ? "bg-red-500"
-                          : report.riskLevel === "medium"
-                            ? "bg-amber-500"
-                            : "bg-green-500",
-                      )}
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
           <div className="md:hidden">
             <MapLegend />
           </div>
@@ -721,6 +728,17 @@ export default function FloodMapPage() {
             Buat Laporan
           </Link>
         </div>
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white border border-blue-200">
+            <MousePointerClick
+              size={16}
+              className="text-blue-600 animate-float-soft"
+            />
+          </div>
+          <p className="text-sm text-blue-900 leading-relaxed">
+            Klik salah satu laporan untuk membuka detail lengkap dan mengarahkan peta ke lokasi exact laporan tersebut.
+          </p>
+        </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {loadingReports ? (
             [1, 2, 3].map((item) => (
@@ -739,7 +757,12 @@ export default function FloodMapPage() {
             </div>
           ) : (
             reports.map((report) => (
-              <FloodReportCard key={report.id} report={report} />
+              <FloodReportCard
+                key={report.id}
+                report={report}
+                active={selectedReportId === report.id}
+                onClick={() => focusReportOnMap(report.id)}
+              />
             ))
           )}
         </div>

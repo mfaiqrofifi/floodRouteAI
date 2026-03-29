@@ -338,8 +338,29 @@ export default function SafeRoutePage() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const originParam = params.get("origin");
+    const originLat = params.get("originLat");
+    const originLng = params.get("originLng");
+
+    if (originParam) {
+      setOriginText(originParam);
+    }
+
+    if (originLat && originLng) {
+      const parsedLat = Number(originLat);
+      const parsedLng = Number(originLng);
+
+      if (
+        !Number.isNaN(parsedLat) &&
+        !Number.isNaN(parsedLng) &&
+        isWithinJavaBounds(parsedLat, parsedLng)
+      ) {
+        setOriginCoords([parsedLat, parsedLng]);
+        return;
+      }
+    }
+
     if (!originParam) return;
-    setOriginText(originParam);
+
     const preset = JAKARTA_PRESETS.find(
       (p) =>
         p.shortName.toLowerCase() === originParam.toLowerCase() ||
