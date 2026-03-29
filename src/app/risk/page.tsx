@@ -270,7 +270,7 @@ export default function RiskPage() {
             </h3>
             <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
               Data cuaca diambil langsung dari BMKG dan dianalisis secara
-              otomatis. Tidak ada nilai acak Ã¢â‚¬â€ semua berbasis data nyata.
+              otomatis. Tidak ada nilai acak, semua berbasis data nyata.
             </p>
           </div>
         )}
@@ -339,7 +339,7 @@ export default function RiskPage() {
                     <span className="text-xs text-slate-600 font-medium">
                       {RAINFALL_LABELS[result.signals.rainfallLevel]}
                     </span>
-                    <span className="text-xs text-slate-400">Ã‚Â· Data BMKG</span>
+                    <span className="text-xs text-slate-400">· Data BMKG</span>
                   </div>
                 </div>
                 <ScoreArc score={result.riskScore} level={result.riskLevel} />
@@ -432,7 +432,7 @@ export default function RiskPage() {
                   <div className="flex items-center gap-1 mt-0.5">
                     <Sparkles size={10} className="text-blue-500" />
                     <span className="text-[11px] text-blue-600">
-                      Penjelasan oleh AI Ã‚Â· Skor dihitung oleh aturan BMKG
+                      Penjelasan oleh AI · Skor dihitung oleh aturan BMKG
                     </span>
                   </div>
                 </div>
