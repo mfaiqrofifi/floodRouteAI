@@ -7,6 +7,7 @@ import {
   Search,
   Clock,
   Route,
+  ArrowRight,
   Shield,
   AlertTriangle,
   CheckCircle2,
@@ -510,6 +511,8 @@ export default function SafeRoutePage() {
     );
   }, [applyLocation]);
 
+  const selectedRoute =
+    rankedRoutes.find((route) => route.id === selectedId) ?? rankedRoutes[0] ?? null;
   const canSearch = !!originCoords && !!destCoords && !loading;
 
   return (
@@ -778,6 +781,55 @@ export default function SafeRoutePage() {
                     />
                   ))}
                 </div>
+
+                {selectedRoute && (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                          Rekomendasi Jalur
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {selectedRoute.guidanceSummary}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-blue-700 border border-blue-200">
+                        Rute dipilih
+                      </span>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {selectedRoute.guidanceSteps.map((step, index) => (
+                        <div
+                          key={`${selectedRoute.id}-guidance-${index}`}
+                          className="rounded-xl border border-white/70 bg-white/80 p-3"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white">
+                              {index + 1}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-medium text-slate-800">
+                                  {step.instruction}
+                                </p>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                                  <ArrowRight size={10} />
+                                  {step.distanceKm.toFixed(1).replace(".0", "")} km
+                                </span>
+                              </div>
+                              {step.warning && (
+                                <p className="mt-1 text-xs text-amber-700">
+                                  {step.warning}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
                   <Info size={15} className="text-amber-600 shrink-0 mt-0.5" />
