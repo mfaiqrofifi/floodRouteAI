@@ -38,6 +38,15 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  .animate-float-soft {
+    animation: float-soft 2.8s ease-in-out infinite;
+  }
+  .animate-bounce-soft {
+    animation: bounce-soft 1.6s ease-in-out infinite;
+  }
+  .animate-pulse-soft {
+    animation: pulse-soft 1.8s ease-in-out infinite;
+  }
   .gradient-blue {
     background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
   }
@@ -49,5 +58,35 @@ body {
   }
   .card-hover {
     @apply transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5;
+  }
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes bounce-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
   }
 }
