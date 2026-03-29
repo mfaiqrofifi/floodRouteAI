@@ -89,6 +89,14 @@ function scoreGeometry(coords: [number, number][]): {
 export type FloodZone = (typeof FLOOD_ZONES)[number];
 export type RouteMode = "safest" | "fastest" | "balanced";
 
+export interface RouteGuidanceStep {
+  instruction: string;
+  roadName: string | null;
+  distanceKm: number;
+  riskLevel: RiskLevel;
+  warning: string | null;
+}
+
 /** A route with geometry + risk scoring but no mode-based ranking yet. */
 export interface ScoredRoute {
   id: string;
@@ -98,6 +106,8 @@ export interface ScoredRoute {
   riskScore: number;
   riskLevel: RiskLevel;
   floodProneSegments: number;
+  guidanceSummary: string;
+  guidanceSteps: RouteGuidanceStep[];
 }
 
 /** A scored route enriched with mode-based ranking, badge, and explanation. */
@@ -143,6 +153,172 @@ function buildExplanation(
   return lines;
 }
 
+interface OsrmStep {
+  distance: number;
+  name: string;
+  maneuver?: {
+    type?: string;
+    modifier?: string;
+  };
+  geometry?: {
+    coordinates: [number, number][];
+  };
+}
+
+function getRiskLevelFromScore(score: number): RiskLevel {
+  return score > 55 ? "high" : score > 30 ? "medium" : "low";
+}
+
+function formatDistanceKm(distanceMeters: number): string {
+  const distanceKm = distanceMeters / 1000;
+  return distanceKm >= 1
+    ? `${distanceKm.toFixed(1).replace(".0", "")} km`
+    : `${Math.max(100, Math.round(distanceMeters / 50) * 50)} m`;
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function buildStepInstruction(step: OsrmStep): string {
+  const roadName = step.name?.trim() || "jalan utama";
+  const distanceLabel = formatDistanceKm(step.distance);
+  const modifier = step.maneuver?.modifier;
+  const type = step.maneuver?.type;
+
+  if (type === "depart") {
+    return `Mulai perjalanan dan ambil ${roadName} sekitar ${distanceLabel}.`;
+  }
+
+  if (type === "arrive") {
+    return `Lanjutkan menuju tujuan akhir setelah ${roadName}.`;
+  }
+
+  if (type === "roundabout") {
+    return `Masuk bundaran lalu ikuti arah ke ${roadName} sekitar ${distanceLabel}.`;
+  }
+
+  if (modifier === "left") {
+    return `Belok kiri ke ${roadName} lalu ikuti sekitar ${distanceLabel}.`;
+  }
+
+  if (modifier === "right") {
+    return `Belok kanan ke ${roadName} lalu ikuti sekitar ${distanceLabel}.`;
+  }
+
+  if (modifier === "slight left") {
+    return `Ambil sedikit ke kiri menuju ${roadName} sekitar ${distanceLabel}.`;
+  }
+
+  if (modifier === "slight right") {
+    return `Ambil sedikit ke kanan menuju ${roadName} sekitar ${distanceLabel}.`;
+  }
+
+  if (modifier === "straight") {
+    return `Lanjut lurus melalui ${roadName} sekitar ${distanceLabel}.`;
+  }
+
+  return `Ikuti ${roadName} sekitar ${distanceLabel}.`;
+}
+
+function buildRiskWarning(stepRiskScore: number, roadName: string | null): string | null {
+  if (stepRiskScore > 55) {
+    return roadName
+      ? `Waspadai segmen rawan di sekitar ${roadName}.`
+      : "Waspadai segmen rawan banjir pada bagian rute ini.";
+  }
+
+  if (stepRiskScore > 35) {
+    return roadName
+      ? `Pantau kondisi genangan di sekitar ${roadName}.`
+      : "Pantau kondisi genangan pada bagian rute ini.";
+  }
+
+  return null;
+}
+
+function buildGuidanceSteps(steps: OsrmStep[]): RouteGuidanceStep[] {
+  const condensed: RouteGuidanceStep[] = [];
+
+  for (const step of steps) {
+    if (step.distance < 250 && step.maneuver?.type !== "depart") {
+      continue;
+    }
+
+    const roadName = step.name?.trim() || null;
+    const geometry =
+      step.geometry?.coordinates.map(([lng, lat]) => [lat, lng] as [number, number]) ?? [];
+    const sampledScores = geometry.length
+      ? geometry.map(([lat, lng]) => getPointRisk(lat, lng))
+      : [0];
+    const stepRiskScore = Math.round(
+      sampledScores.reduce((sum, value) => sum + value, 0) / sampledScores.length,
+    );
+    const riskLevel = getRiskLevelFromScore(stepRiskScore);
+
+    condensed.push({
+      instruction: buildStepInstruction(step),
+      roadName,
+      distanceKm: Math.round((step.distance / 1000) * 10) / 10,
+      riskLevel,
+      warning: buildRiskWarning(stepRiskScore, roadName),
+    });
+  }
+
+  const uniqueSteps: RouteGuidanceStep[] = [];
+  for (const step of condensed) {
+    const normalizedRoad = step.roadName?.toLowerCase() ?? "";
+    const previous = uniqueSteps[uniqueSteps.length - 1];
+
+    if (
+      previous &&
+      normalizedRoad &&
+      normalizedRoad === (previous.roadName?.toLowerCase() ?? "") &&
+      step.riskLevel === previous.riskLevel
+    ) {
+      previous.distanceKm = Math.round((previous.distanceKm + step.distanceKm) * 10) / 10;
+      previous.instruction = `Lanjutkan melalui ${step.roadName} sekitar ${previous.distanceKm
+        .toFixed(1)
+        .replace(".0", "")} km.`;
+      previous.warning = previous.warning ?? step.warning;
+      continue;
+    }
+
+    uniqueSteps.push(step);
+  }
+
+  const prioritized = uniqueSteps.filter(
+    (step) =>
+      step.roadName ||
+      step.warning ||
+      step.instruction.toLowerCase().includes("belok") ||
+      step.instruction.toLowerCase().includes("mulai"),
+  );
+
+  return (prioritized.length ? prioritized : uniqueSteps).slice(0, 5);
+}
+
+function buildGuidanceSummary(route: ScoredRoute, steps: RouteGuidanceStep[]): string {
+  const firstNamedRoad = steps.find((step) => step.roadName)?.roadName;
+  const highestRiskStep = steps.find((step) => step.riskLevel === "high");
+
+  const startLine = firstNamedRoad
+    ? `Mulai lewat ${toTitleCase(firstNamedRoad)}`
+    : "Ikuti koridor utama dari titik awal";
+
+  if (highestRiskStep?.roadName) {
+    return `${startLine}, lalu tetap waspada saat mendekati ${toTitleCase(
+      highestRiskStep.roadName,
+    )}. Estimasi ${route.durationMin} menit dengan skor risiko ${route.riskScore}/100.`;
+  }
+
+  return `${startLine} menuju Jakarta dengan estimasi ${route.durationMin} menit dan skor risiko ${route.riskScore}/100.`;
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -160,7 +336,7 @@ export async function fetchScoredRoutes(
   const url =
     `https://router.project-osrm.org/route/v1/driving/` +
     `${originLng},${originLat};${destLng},${destLat}` +
-    `?alternatives=true&geometries=geojson&overview=full`;
+    `?alternatives=true&steps=true&annotations=false&geometries=geojson&overview=full`;
 
   const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
   if (!res.ok) throw new Error("Layanan routing tidak tersedia saat ini.");
@@ -171,6 +347,9 @@ export async function fetchScoredRoutes(
       geometry: { coordinates: [number, number][] };
       duration: number;
       distance: number;
+      legs: Array<{
+        steps: OsrmStep[];
+      }>;
     }>;
   };
 
@@ -183,12 +362,28 @@ export async function fetchScoredRoutes(
     const geometry: [number, number][] = r.geometry.coordinates.map(
       ([lng, lat]) => [lat, lng],
     );
+    const routeScore = scoreGeometry(geometry);
+    const routeSteps = r.legs.flatMap((leg) => leg.steps ?? []);
+    const guidanceSteps = buildGuidanceSteps(routeSteps);
     return {
       id: `route-${i}`,
       geometry,
       distanceKm: Math.round((r.distance / 1000) * 10) / 10,
       durationMin: Math.round(r.duration / 60),
-      ...scoreGeometry(geometry),
+      ...routeScore,
+      guidanceSummary: buildGuidanceSummary(
+        {
+          id: `route-${i}`,
+          geometry,
+          distanceKm: Math.round((r.distance / 1000) * 10) / 10,
+          durationMin: Math.round(r.duration / 60),
+          ...routeScore,
+          guidanceSummary: "",
+          guidanceSteps: [],
+        },
+        guidanceSteps,
+      ),
+      guidanceSteps,
     };
   });
 }
@@ -244,6 +439,8 @@ export function rankRoutes(
       riskScore: routeWithScore.riskScore,
       riskLevel: routeWithScore.riskLevel,
       floodProneSegments: routeWithScore.floodProneSegments,
+      guidanceSummary: routeWithScore.guidanceSummary,
+      guidanceSteps: routeWithScore.guidanceSteps,
     };
 
     return {
