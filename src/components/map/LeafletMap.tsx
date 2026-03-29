@@ -114,6 +114,20 @@ function GuidanceStepFitter({
   return null;
 }
 
+function MapResizer({ resizeKey }: { resizeKey: string | number }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      map.invalidateSize(true);
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [map, resizeKey]);
+
+  return null;
+}
+
 function MapClickSelector({
   activeSelection,
   onMapPointSelect,
@@ -176,6 +190,7 @@ export interface LeafletMapProps {
   destLabel?: string;
   activeSelection?: "origin" | "destination" | null;
   focusedStepGeometry?: [number, number][];
+  resizeKey?: string | number;
   onRouteSelect: (id: string) => void;
   onMapPointSelect?: (
     kind: "origin" | "destination",
@@ -192,6 +207,7 @@ export default function LeafletMap({
   destLabel,
   activeSelection = null,
   focusedStepGeometry = [],
+  resizeKey = "default",
   onRouteSelect,
   onMapPointSelect,
 }: LeafletMapProps) {
@@ -216,6 +232,7 @@ export default function LeafletMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <JakartaBoundaryOverlay dimOutside={false} />
+      <MapResizer resizeKey={resizeKey} />
 
       {/* Auto-fit to selected route */}
       {boundsCoords.length > 1 && <BoundsFitter coords={boundsCoords} />}
