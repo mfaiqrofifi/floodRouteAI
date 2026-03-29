@@ -334,6 +334,7 @@ export default function SafeRoutePage() {
   >(null);
   const [locatingOrigin, setLocatingOrigin] = useState(false);
   const [showMapHint, setShowMapHint] = useState(true);
+  const [selectedStepIndex, setSelectedStepIndex] = useState<number | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -375,8 +376,13 @@ export default function SafeRoutePage() {
       const ranked = rankRoutes(scoredRoutes, mode);
       setRankedRoutes(ranked);
       setSelectedId(ranked[0]?.id ?? null);
+      setSelectedStepIndex(null);
     }
   }, [mode, scoredRoutes]);
+
+  useEffect(() => {
+    setSelectedStepIndex(null);
+  }, [selectedId]);
 
   const applyLocation = useCallback(
     (kind: "origin" | "destination", result: GeoResult) => {
@@ -534,6 +540,17 @@ export default function SafeRoutePage() {
 
   const selectedRoute =
     rankedRoutes.find((route) => route.id === selectedId) ?? rankedRoutes[0] ?? null;
+  const focusedStepGeometry =
+    selectedStepIndex !== null
+      ? (() => {
+          const step = selectedRoute?.guidanceSteps[selectedStepIndex];
+          if (!step || !selectedRoute) return [];
+          return selectedRoute.geometry.slice(
+            step.routeStartIndex,
+            step.routeEndIndex + 1,
+          );
+        })()
+      : [];
   const canSearch = !!originCoords && !!destCoords && !loading;
 
   return (
@@ -820,13 +837,34 @@ export default function SafeRoutePage() {
                     </div>
 
                     <div className="mt-4 space-y-3">
+                      <p className="text-[11px] text-blue-700/80">
+                        Klik salah satu langkah untuk menyorot segmen jalannya di peta.
+                      </p>
                       {selectedRoute.guidanceSteps.map((step, index) => (
-                        <div
+                        <button
+                          type="button"
                           key={`${selectedRoute.id}-guidance-${index}`}
-                          className="rounded-xl border border-white/70 bg-white/80 p-3"
+                          onClick={() =>
+                            setSelectedStepIndex((prev) =>
+                              prev === index ? null : index,
+                            )
+                          }
+                          className={cn(
+                            "w-full rounded-xl border p-3 text-left transition-all",
+                            selectedStepIndex === index
+                              ? "border-blue-300 bg-blue-50 shadow-sm"
+                              : "border-white/70 bg-white/80 hover:border-blue-200 hover:bg-white",
+                          )}
                         >
                           <div className="flex items-start gap-3">
-                            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white">
+                            <div
+                              className={cn(
+                                "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white",
+                                selectedStepIndex === index
+                                  ? "bg-blue-700"
+                                  : "bg-blue-600",
+                              )}
+                            >
                               {index + 1}
                             </div>
                             <div className="min-w-0 flex-1">
@@ -838,6 +876,11 @@ export default function SafeRoutePage() {
                                   <ArrowRight size={10} />
                                   {step.distanceKm.toFixed(1).replace(".0", "")} km
                                 </span>
+                                {selectedStepIndex === index && (
+                                  <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                                    Disorot di peta
+                                  </span>
+                                )}
                               </div>
                               {step.warning && (
                                 <p className="mt-1 text-xs text-amber-700">
@@ -846,7 +889,7 @@ export default function SafeRoutePage() {
                               )}
                             </div>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -873,6 +916,7 @@ export default function SafeRoutePage() {
             originLabel={originText}
             destLabel={destText}
             activeSelection={activeSelection}
+            focusedStepGeometry={focusedStepGeometry}
             onRouteSelect={setSelectedId}
             onMapPointSelect={handleMapPointSelect}
           />
